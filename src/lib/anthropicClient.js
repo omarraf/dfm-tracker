@@ -1,5 +1,7 @@
 const SYSTEM_PROMPT = `You are a senior CNC machinist and DFM (Design for Manufacturability) engineer with 20+ years of experience operating 3-, 4-, and 5-axis machining centers. You are reviewing a mechanical part for manufacturability based on rendered images from multiple angles.
 
+The part's bounding box dimensions in mm will be provided. Use these to reason about wall thickness, pocket depth, hole diameters, and feature sizes relative to standard tooling.
+
 Return ONLY a valid JSON object — no markdown, no extra text. Use exactly this structure:
 
 {
@@ -26,7 +28,7 @@ Scoring guide:
 
 If no issues are present, return an empty array for flagged_issues.`
 
-export async function analyzeWithClaude(screenshots) {
+export async function analyzeWithClaude(screenshots, dimensions) {
   const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY
   if (!apiKey) {
     throw new Error(
@@ -34,18 +36,22 @@ export async function analyzeWithClaude(screenshots) {
     )
   }
 
-  const labels = ['Front view', 'Side view', 'Top view', 'Isometric view']
+  const labels = ['Front view', 'Side view', 'Top view', 'Isometric view', 'Bottom view']
 
   const imageContent = screenshots.flatMap((dataUrl, i) => {
     const base64 = dataUrl.split(',')[1]
     return [
-      { type: 'text', text: `**${labels[i]}:**` },
+      { type: 'text', text: `**${labels[i] ?? `View ${i + 1}`}:**` },
       {
         type: 'image',
         source: { type: 'base64', media_type: 'image/png', data: base64 },
       },
     ]
   })
+
+  const dimsText = dimensions
+    ? `Part bounding box: ${dimensions.x} × ${dimensions.y} × ${dimensions.z} mm (X × Y × Z)\n\n`
+    : ''
 
   const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -66,7 +72,7 @@ export async function analyzeWithClaude(screenshots) {
             ...imageContent,
             {
               type: 'text',
-              text: 'Analyze this CNC part for DFM concerns. Identify all manufacturability issues and return your assessment as JSON.',
+              text: `${dimsText}Analyze this CNC part for DFM concerns. Identify all manufacturability issues and return your assessment as JSON.`,
             },
           ],
         },

@@ -191,6 +191,17 @@ const Viewer3D = forwardRef(function Viewer3D(
 
       targetGroup.add(mesh)
 
+      // Edge overlay — makes features visible for Claude's analysis
+      const edgesGeo = new THREE.EdgesGeometry(geometry, 15)
+      const edgesMat = new THREE.LineBasicMaterial({
+        color: 0xc8dae8,
+        transparent: true,
+        opacity: 0.55,
+      })
+      const edgeLines = new THREE.LineSegments(edgesGeo, edgesMat)
+      edgeLines.position.copy(mesh.position)
+      targetGroup.add(edgeLines)
+
       // Update grid size to match the model
       const currentScene = sceneRef.current
       if (currentScene) {
@@ -266,18 +277,42 @@ const Viewer3D = forwardRef(function Viewer3D(
     const fov      = camera.fov * (Math.PI / 180)
     const distance = (sphere.radius * 3.2) / Math.tan(fov / 2)
 
+    // Bounding box dimensions (STEP files are in mm)
+    const size = new THREE.Vector3()
+    box.getSize(size)
+    const dims = {
+      x: Math.round(size.x * 10) / 10,
+      y: Math.round(size.y * 10) / 10,
+      z: Math.round(size.z * 10) / 10,
+    }
+
     const savedPos    = camera.position.clone()
     const savedTarget = controls.target.clone()
+    const savedUp     = camera.up.clone()
 
-    const angles = [
-      new THREE.Vector3(0, 0, distance),          // Front
-      new THREE.Vector3(distance, 0, 0),           // Side
-      new THREE.Vector3(0, distance * 1.1, 0.001), // Top (tiny Z offset avoids gimbal)
-      new THREE.Vector3(distance * 0.65, distance * 0.65, distance * 0.65), // Isometric
+    // Each view: offset from center + optional camera.up override (avoids gimbal lock)
+    const views = [
+      { offset: new THREE.Vector3(0,            0,             distance),       up: null },
+      { offset: new THREE.Vector3(distance,     0,             0),              up: null },
+      { offset: new THREE.Vector3(0,            distance*1.1,  0),              up: new THREE.Vector3(0, 0, -1) },
+      { offset: new THREE.Vector3(distance*0.65, distance*0.65, distance*0.65), up: null },
+      { offset: new THREE.Vector3(0,            -distance*1.1, 0),              up: new THREE.Vector3(0, 0,  1) },
     ]
 
+    // Capture at a fixed 800×800 so screenshots are always crisp regardless of viewport size
+    const domEl = renderer.domElement
+    const cssW  = domEl.clientWidth
+    const cssH  = domEl.clientHeight
+    const origPR = renderer.getPixelRatio()
+    renderer.setPixelRatio(1)
+    renderer.setSize(800, 800, false)
+    camera.aspect = 1
+    camera.updateProjectionMatrix()
+
     const shots = []
-    for (const offset of angles) {
+    for (const { offset, up } of views) {
+      if (up) camera.up.copy(up)
+      else camera.up.set(0, 1, 0)
       camera.position.copy(center).add(offset)
       camera.lookAt(center)
       controls.target.copy(center)
@@ -286,12 +321,17 @@ const Viewer3D = forwardRef(function Viewer3D(
       shots.push(renderer.domElement.toDataURL('image/png'))
     }
 
-    // Restore
+    // Restore renderer + camera
+    renderer.setPixelRatio(origPR)
+    renderer.setSize(cssW, cssH, false)
+    camera.up.copy(savedUp)
+    camera.aspect = cssW / cssH
+    camera.updateProjectionMatrix()
     camera.position.copy(savedPos)
     controls.target.copy(savedTarget)
     controls.update()
 
-    return shots
+    return { shots, dims }
   }, [])
 
   useImperativeHandle(ref, () => ({ captureScreenshots, fitCamera }), [

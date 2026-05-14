@@ -1,6 +1,7 @@
 import UploadZone from './UploadZone'
 import ScreenshotStrip from './ScreenshotStrip'
 import AnalysisResults from './AnalysisResults'
+import HistoryPanel from './HistoryPanel'
 
 function Separator({ label }) {
   return (
@@ -19,28 +20,74 @@ function Separator({ label }) {
 export default function RightPanel({
   fileName,
   hasModel,
+  historyMode,
   isAnalyzing,
   screenshots,
   result,
   error,
   onFileSelect,
   onAnalyze,
+  onHistoryLoad,
 }) {
+  const showUpload   = !hasModel && !historyMode
+  const showAnalyze  = hasModel && !historyMode
+  const hasResults   = screenshots.length > 0 || result
+
   return (
     <div className="w-80 shrink-0 flex flex-col bg-[var(--bg-1)] overflow-hidden">
       {/* Panel header */}
-      <div className="px-4 py-3 border-b border-[var(--border)]">
+      <div className="px-4 py-3 border-b border-[var(--border)] flex items-center justify-between">
         <p className="text-[9px] text-[var(--text-3)] tracking-widest uppercase">Control Panel</p>
+        {(hasModel || historyMode) && (
+          <button
+            onClick={() => document.querySelector('input[type=file]')?.click()}
+            disabled={isAnalyzing}
+            className="text-[9px] text-[var(--text-3)] hover:text-amber-500 flex items-center gap-1 transition-colors disabled:opacity-40"
+            title="Upload a different file"
+          >
+            <svg width="9" height="9" viewBox="0 0 9 9" fill="none">
+              <path d="M4.5 1v6M2 3.5l2.5-2.5 2.5 2.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M1 8h7" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+            </svg>
+            Upload new
+            {/* Hidden file input so the button can trigger it */}
+          </button>
+        )}
       </div>
 
       {/* Scrollable body */}
-      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-0">
+      <div className="flex-1 overflow-y-auto px-4 py-3">
 
-        {/* Upload */}
-        <UploadZone onFile={onFileSelect} disabled={isAnalyzing} />
+        {/* Upload zone — shown when idle or after reset */}
+        {showUpload && (
+          <UploadZone onFile={onFileSelect} disabled={isAnalyzing} />
+        )}
+
+        {/* Currently loaded file indicator when model is live */}
+        {(hasModel || historyMode) && (
+          <div className="bracket-card rounded bg-[var(--bg-2)] border border-[var(--border)] px-3 py-2 flex items-center gap-2.5">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="text-amber-500 shrink-0">
+              <path d="M2 2h5l3 3v5H2V2z" stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round"/>
+              <path d="M7 2v3h3" stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round"/>
+            </svg>
+            <span className="text-[10px] text-[var(--text-2)] truncate flex-1" title={fileName}>
+              {fileName}
+            </span>
+            {historyMode && (
+              <span className="text-[8px] text-[var(--text-3)] tracking-wider shrink-0">HISTORY</span>
+            )}
+          </div>
+        )}
+
+        {/* Swap file button — visible when something is loaded */}
+        {(hasModel || historyMode) && !isAnalyzing && (
+          <div className="mt-2">
+            <UploadZone onFile={onFileSelect} disabled={isAnalyzing} compact />
+          </div>
+        )}
 
         {/* Analyze button */}
-        {hasModel && (
+        {showAnalyze && (
           <>
             <Separator />
             <button
@@ -81,7 +128,7 @@ export default function RightPanel({
         {error && (
           <>
             <Separator />
-            <div className="rounded border border-red-500/30 bg-red-500/8 p-3">
+            <div className="rounded border border-red-500/30 bg-red-500/5 p-3">
               <div className="flex items-start gap-2">
                 <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="text-red-400 mt-0.5 shrink-0">
                   <circle cx="6" cy="6" r="5" stroke="currentColor" strokeWidth="1.2"/>
@@ -93,27 +140,29 @@ export default function RightPanel({
           </>
         )}
 
-        {/* Screenshot strip */}
-        {screenshots.length > 0 && (
+        {/* Screenshots + Results */}
+        {hasResults && (
           <>
-            <Separator label="Sent to Claude" />
-            <ScreenshotStrip screenshots={screenshots} />
+            {screenshots.length > 0 && (
+              <>
+                <Separator label="Sent to Claude" />
+                <ScreenshotStrip screenshots={screenshots} />
+              </>
+            )}
+            {result && (
+              <>
+                <Separator label="DFM Report" />
+                <AnalysisResults result={result} />
+              </>
+            )}
           </>
         )}
 
-        {/* Results */}
-        {result && (
-          <>
-            <Separator label="DFM Report" />
-            <AnalysisResults result={result} />
-          </>
-        )}
-
-        {/* Empty state hint */}
-        {!hasModel && !error && (
-          <div className="mt-6 space-y-3">
+        {/* Empty state: how-it-works */}
+        {showUpload && !error && (
+          <div className="mt-4 space-y-3">
             <Separator label="How it works" />
-            <ol className="space-y-2.5 pl-1">
+            <ol className="space-y-2 pl-1">
               {[
                 'Upload a STEP or STP file',
                 'Part renders in the 3D viewport',
@@ -129,22 +178,25 @@ export default function RightPanel({
                 </li>
               ))}
             </ol>
-
             <Separator />
             <div className="rounded border border-[var(--border)] bg-[var(--bg-2)] p-3">
-              <p className="text-[9px] text-[var(--text-3)] mb-1.5 tracking-wider uppercase">Required</p>
+              <p className="text-[9px] text-[var(--text-3)] mb-1 tracking-wider uppercase">Required</p>
               <p className="text-[10px] text-[var(--text-2)] leading-relaxed">
-                Set <code className="text-amber-500 bg-[var(--bg-3)] px-1 py-0.5 rounded text-[9px]">VITE_ANTHROPIC_API_KEY</code> in a <code className="text-amber-500 bg-[var(--bg-3)] px-1 py-0.5 rounded text-[9px]">.env</code> file before analysis.
+                Set <code className="text-amber-500 bg-[var(--bg-3)] px-1 py-0.5 rounded text-[9px]">VITE_ANTHROPIC_API_KEY</code> in a <code className="text-amber-500 bg-[var(--bg-3)] px-1 py-0.5 rounded text-[9px]">.env</code> file.
               </p>
             </div>
           </div>
         )}
 
+        {/* History */}
+        <Separator />
+        <HistoryPanel onLoad={onHistoryLoad} />
+
         <div className="h-4" />
       </div>
 
       {/* Footer */}
-      <div className="px-4 py-2.5 border-t border-[var(--border)] flex items-center justify-between">
+      <div className="px-4 py-2.5 border-t border-[var(--border)] flex items-center justify-between shrink-0">
         <span className="text-[8px] text-[var(--text-3)] tracking-widest uppercase">
           Powered by Claude Sonnet
         </span>
