@@ -5,14 +5,16 @@ import { analyzeWithClaude } from './lib/anthropicClient'
 import { saveAnalysis } from './lib/db'
 
 export default function App() {
-  const [modelBuffer, setModelBuffer] = useState(null)
-  const [fileName, setFileName]       = useState(null)
-  const [isParsing, setIsParsing]     = useState(false)
-  const [modelReady, setModelReady]   = useState(false)
-  const [isAnalyzing, setIsAnalyzing] = useState(false)
-  const [screenshots, setScreenshots] = useState([])
-  const [result, setResult]           = useState(null)
-  const [error, setError]             = useState(null)
+  const [modelBuffer, setModelBuffer]     = useState(null)
+  const [fileName, setFileName]           = useState(null)
+  const [isParsing, setIsParsing]         = useState(false)
+  const [modelReady, setModelReady]       = useState(false)
+  const [isAnalyzing, setIsAnalyzing]     = useState(false)
+  const [screenshots, setScreenshots]     = useState([])
+  const [result, setResult]               = useState(null)
+  const [error, setError]                 = useState(null)
+  const [geometryStats, setGeometryStats] = useState(null)
+  const [material, setMaterial]           = useState('Aluminium 6061')
   // When loading from history we have results/screenshots but no live 3D model
   const [historyMode, setHistoryMode] = useState(false)
   const viewerRef = useRef(null)
@@ -26,6 +28,7 @@ export default function App() {
     setScreenshots([])
     setResult(null)
     setError(null)
+    setGeometryStats(null)
     setHistoryMode(false)
   }, [])
 
@@ -45,9 +48,10 @@ export default function App() {
     reader.readAsArrayBuffer(file)
   }, [])
 
-  const handleModelLoaded = useCallback(() => {
+  const handleModelLoaded = useCallback((stats) => {
     setIsParsing(false)
     setModelReady(true)
+    setGeometryStats(stats)
   }, [])
 
   const handleParseError = useCallback((msg) => {
@@ -64,7 +68,7 @@ export default function App() {
     try {
       const { shots, dims } = await viewerRef.current.captureScreenshots()
       setScreenshots(shots)
-      const data = await analyzeWithClaude(shots, dims)
+      const data = await analyzeWithClaude(shots, dims, geometryStats, material)
       setResult(data)
 
       // Persist to IndexedDB
@@ -84,7 +88,7 @@ export default function App() {
     } finally {
       setIsAnalyzing(false)
     }
-  }, [fileName, modelBuffer])
+  }, [fileName, modelBuffer, geometryStats, material])
 
   // Load a previously saved analysis (no live 3D — just results + screenshots)
   const handleHistoryLoad = useCallback((item) => {
@@ -216,8 +220,11 @@ export default function App() {
           screenshots={screenshots}
           result={result}
           error={error}
+          geometryStats={geometryStats}
+          material={material}
           onFileSelect={handleFile}
           onAnalyze={handleAnalyze}
+          onMaterialChange={setMaterial}
           onHistoryLoad={handleHistoryLoad}
         />
       </div>

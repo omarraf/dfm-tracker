@@ -13,14 +13,15 @@ const Viewer3D = forwardRef(function Viewer3D(
   { modelBuffer, onModelLoaded, onError },
   ref
 ) {
-  const wrapRef     = useRef(null)
-  const rendererRef = useRef(null)
-  const sceneRef    = useRef(null)
-  const cameraRef   = useRef(null)
-  const controlsRef = useRef(null)
-  const modelRef    = useRef(null)  // Group holding the mesh
-  const rafRef      = useRef(null)
-  const workerRef   = useRef(null)
+  const wrapRef          = useRef(null)
+  const rendererRef      = useRef(null)
+  const sceneRef         = useRef(null)
+  const cameraRef        = useRef(null)
+  const controlsRef      = useRef(null)
+  const modelRef         = useRef(null)  // Group holding the mesh
+  const rafRef           = useRef(null)
+  const workerRef        = useRef(null)
+  const geometryStatsRef = useRef(null)
 
   // ── Scene setup ────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -141,7 +142,7 @@ const Viewer3D = forwardRef(function Viewer3D(
     workerRef.current = worker
 
     worker.onmessage = (e) => {
-      const { success, positionBuffer, normalBuffer, indexBuffer, error: parseError } = e.data
+      const { success, positionBuffer, normalBuffer, indexBuffer, geometryStats, error: parseError } = e.data
 
       if (!success) {
         onError?.(parseError || 'STEP parsing failed')
@@ -213,8 +214,9 @@ const Viewer3D = forwardRef(function Viewer3D(
         currentScene.add(newGrid)
       }
 
+      geometryStatsRef.current = geometryStats ?? null
       fitCamera()
-      onModelLoaded?.()
+      onModelLoaded?.(geometryStats ?? null)
     }
 
     worker.onerror = (e) => {
@@ -331,7 +333,7 @@ const Viewer3D = forwardRef(function Viewer3D(
     controls.target.copy(savedTarget)
     controls.update()
 
-    return { shots, dims }
+    return { shots, dims, geometryStats: geometryStatsRef.current }
   }, [])
 
   useImperativeHandle(ref, () => ({ captureScreenshots, fitCamera }), [
