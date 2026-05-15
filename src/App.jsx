@@ -1,11 +1,14 @@
 import { useState, useRef, useCallback } from 'react'
 import Viewer3D from './components/Viewer3D'
+import Viewer2D from './components/Viewer2D'
 import RightPanel from './components/RightPanel'
 import { analyzeWithClaude } from './lib/anthropicClient'
 import { saveAnalysis } from './lib/db'
 
 export default function App() {
-  const [modelBuffer, setModelBuffer]     = useState(null)
+  const [fileType, setFileType]           = useState(null)   // 'step' | 'dxf' | null
+  const [modelBuffer, setModelBuffer]     = useState(null)   // ArrayBuffer for STEP
+  const [dxfText, setDxfText]             = useState(null)   // string for DXF
   const [fileName, setFileName]           = useState(null)
   const [isParsing, setIsParsing]         = useState(false)
   const [modelReady, setModelReady]       = useState(false)
@@ -14,13 +17,17 @@ export default function App() {
   const [result, setResult]               = useState(null)
   const [error, setError]                 = useState(null)
   const [geometryStats, setGeometryStats] = useState(null)
+  // Persisted preferences — intentionally not reset between files
   const [material, setMaterial]           = useState('Aluminium 6061')
+  const [thickness, setThickness]         = useState('3')
   // When loading from history we have results/screenshots but no live 3D model
-  const [historyMode, setHistoryMode] = useState(false)
+  const [historyMode, setHistoryMode]     = useState(false)
   const viewerRef = useRef(null)
 
   const reset = useCallback(() => {
+    setFileType(null)
     setModelBuffer(null)
+    setDxfText(null)
     setFileName(null)
     setIsParsing(false)
     setModelReady(false)
@@ -34,6 +41,10 @@ export default function App() {
 
   const handleFile = useCallback((file) => {
     if (!file) return
+    const isDxf  = file.name.toLowerCase().endsWith('.dxf')
+    const type   = isDxf ? 'dxf' : 'step'
+
+    setFileType(type)
     setFileName(file.name)
     setResult(null)
     setScreenshots([])
@@ -41,11 +52,20 @@ export default function App() {
     setModelReady(false)
     setHistoryMode(false)
     setIsParsing(true)
+    // Clear the opposite type's data
+    if (isDxf) setModelBuffer(null)
+    else        setDxfText(null)
 
     const reader = new FileReader()
-    reader.onload = (e) => setModelBuffer(e.target.result)
-    reader.onerror = () => { setIsParsing(false); setError('Failed to read file') }
-    reader.readAsArrayBuffer(file)
+    if (isDxf) {
+      reader.onload  = (e) => setDxfText(e.target.result)
+      reader.onerror = () => { setIsParsing(false); setError('Failed to read DXF file') }
+      reader.readAsText(file)
+    } else {
+      reader.onload  = (e) => setModelBuffer(e.target.result)
+      reader.onerror = () => { setIsParsing(false); setError('Failed to read file') }
+      reader.readAsArrayBuffer(file)
+    }
   }, [])
 
   const handleModelLoaded = useCallback((stats) => {
@@ -68,40 +88,30 @@ export default function App() {
     try {
       const { shots, dims } = await viewerRef.current.captureScreenshots()
       setScreenshots(shots)
-      const data = await analyzeWithClaude(shots, dims, geometryStats, material)
+      const data = await analyzeWithClaude(shots, dims, geometryStats, material, fileType, thickness)
       setResult(data)
 
-      // Persist to IndexedDB
       try {
-        await saveAnalysis({
-          fileName,
-          fileBuffer: modelBuffer,
-          screenshots: shots,
-          result: data,
-        })
+        await saveAnalysis({ fileName, fileBuffer: modelBuffer, screenshots: shots, result: data })
         window.__dfmHistoryRefresh?.()
-      } catch (_) {
-        // DB save is non-critical — ignore errors
-      }
+      } catch (_) {}
     } catch (err) {
       setError(err.message)
     } finally {
       setIsAnalyzing(false)
     }
-  }, [fileName, modelBuffer, geometryStats, material])
+  }, [fileName, modelBuffer, geometryStats, material, fileType, thickness])
 
-  // Load a previously saved analysis (no live 3D — just results + screenshots)
   const handleHistoryLoad = useCallback((item) => {
     reset()
-    // Small tick so the Viewer3D re-mounts cleanly after reset
     setTimeout(() => {
       setFileName(item.fileName)
       setScreenshots(item.screenshots ?? [])
       setResult(item.result ?? null)
       setHistoryMode(true)
-      // Replay the STEP file through the viewer if we have the buffer
       if (item.fileBuffer) {
         setModelBuffer(item.fileBuffer)
+        setFileType('step')
         setIsParsing(true)
         setModelReady(false)
         setHistoryMode(false)
@@ -110,7 +120,8 @@ export default function App() {
   }, [reset])
 
   const hasModel   = modelReady && !isParsing
-  const hasContent = hasModel || historyMode  // show Analyze button only for live model
+  const hasContent = hasModel || historyMode
+  const isLoaded   = hasContent || isParsing || !!modelBuffer || !!dxfText
 
   return (
     <div className="grid-bg flex flex-col h-screen overflow-hidden">
@@ -126,12 +137,11 @@ export default function App() {
             DFM Checker
           </span>
           <span className="text-[9px] font-mono text-[var(--text-3)] tracking-widest uppercase border border-[var(--border)] px-1.5 py-0.5 rounded">
-            CNC Analyzer
+            CNC · Laser · Waterjet
           </span>
         </div>
 
         <div className="flex items-center gap-3">
-          {/* Status */}
           <div className="text-[10px] text-[var(--text-3)] font-mono">
             {isParsing && (
               <span className="flex items-center gap-1.5 text-amber-500">
@@ -161,13 +171,12 @@ export default function App() {
                 {fileName}
               </span>
             )}
-            {!modelBuffer && !isParsing && !historyMode && (
+            {!modelBuffer && !dxfText && !isParsing && !historyMode && (
               <span className="text-[var(--text-3)]">AWAITING INPUT</span>
             )}
           </div>
 
-          {/* New Analysis button — shown whenever something is loaded */}
-          {(hasContent || isParsing || !!modelBuffer) && (
+          {isLoaded && (
             <button
               onClick={reset}
               className="flex items-center gap-1.5 text-[10px] font-mono text-[var(--text-2)] hover:text-[var(--text-1)] border border-[var(--border)] hover:border-[var(--text-3)] px-2.5 py-1.5 rounded transition-all"
@@ -183,15 +192,28 @@ export default function App() {
 
       {/* ── Main layout ── */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Left: 3D Viewport */}
+        {/* Left: Viewport */}
         <div className="flex-1 relative border-r border-[var(--border)] min-w-0">
-          <Viewer3D
-            ref={viewerRef}
-            modelBuffer={modelBuffer}
-            onModelLoaded={handleModelLoaded}
-            onError={handleParseError}
-          />
-          {!modelBuffer && (
+
+          {/* Always mount both viewers but only show the active one */}
+          <div className={fileType === 'dxf' ? 'w-full h-full' : 'hidden'}>
+            <Viewer2D
+              ref={fileType === 'dxf' ? viewerRef : null}
+              dxfText={dxfText}
+              onModelLoaded={handleModelLoaded}
+              onError={handleParseError}
+            />
+          </div>
+          <div className={fileType !== 'dxf' ? 'w-full h-full' : 'hidden'}>
+            <Viewer3D
+              ref={fileType !== 'dxf' ? viewerRef : null}
+              modelBuffer={modelBuffer}
+              onModelLoaded={handleModelLoaded}
+              onError={handleParseError}
+            />
+          </div>
+
+          {!modelBuffer && !dxfText && (
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
               <div className="text-center">
                 <div className="w-14 h-14 mx-auto mb-4 opacity-8">
@@ -201,19 +223,23 @@ export default function App() {
                   </svg>
                 </div>
                 <p className="text-[10px] text-[var(--text-3)] tracking-widest uppercase">
-                  Upload a STEP file to begin
+                  Upload a STEP or DXF file to begin
                 </p>
               </div>
             </div>
           )}
+
           <div className="absolute bottom-3 left-3 text-[9px] text-[var(--text-3)] font-mono tracking-widest uppercase pointer-events-none">
-            3D Viewport · Orbit: drag · Zoom: scroll
+            {fileType === 'dxf'
+              ? '2D Profile Viewer'
+              : '3D Viewport · Orbit: drag · Zoom: scroll'}
           </div>
         </div>
 
         {/* Right: Controls panel */}
         <RightPanel
           fileName={fileName}
+          fileType={fileType}
           hasModel={hasModel}
           historyMode={historyMode}
           isAnalyzing={isAnalyzing}
@@ -222,9 +248,11 @@ export default function App() {
           error={error}
           geometryStats={geometryStats}
           material={material}
+          thickness={thickness}
           onFileSelect={handleFile}
           onAnalyze={handleAnalyze}
           onMaterialChange={setMaterial}
+          onThicknessChange={setThickness}
           onHistoryLoad={handleHistoryLoad}
         />
       </div>

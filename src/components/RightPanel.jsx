@@ -2,19 +2,23 @@ import UploadZone from './UploadZone'
 import ScreenshotStrip from './ScreenshotStrip'
 import AnalysisResults from './AnalysisResults'
 import GeometryStats from './GeometryStats'
+import DxfStats from './DxfStats'
 import HistoryPanel from './HistoryPanel'
 
 const MATERIALS = [
   'Aluminium 6061',
   'Aluminium 7075',
+  'Aluminium 5052',
   'Stainless Steel 304',
   'Stainless Steel 316',
   'Mild Steel',
   'Titanium 6Al-4V',
   'Brass',
+  'Copper',
   'Delrin (POM)',
   'PEEK',
   'ABS',
+  'Acrylic',
 ]
 
 function Separator({ label }) {
@@ -33,6 +37,7 @@ function Separator({ label }) {
 
 export default function RightPanel({
   fileName,
+  fileType,
   hasModel,
   historyMode,
   isAnalyzing,
@@ -41,14 +46,17 @@ export default function RightPanel({
   error,
   geometryStats,
   material,
+  thickness,
   onFileSelect,
   onAnalyze,
   onMaterialChange,
+  onThicknessChange,
   onHistoryLoad,
 }) {
-  const showUpload   = !hasModel && !historyMode
-  const showAnalyze  = hasModel && !historyMode
-  const hasResults   = screenshots.length > 0 || result
+  const showUpload  = !hasModel && !historyMode
+  const showAnalyze = hasModel && !historyMode
+  const hasResults  = screenshots.length > 0 || result
+  const isDxf       = fileType === 'dxf'
 
   return (
     <div className="w-80 shrink-0 flex flex-col bg-[var(--bg-1)] overflow-hidden">
@@ -60,14 +68,12 @@ export default function RightPanel({
             onClick={() => document.querySelector('input[type=file]')?.click()}
             disabled={isAnalyzing}
             className="text-[9px] text-[var(--text-3)] hover:text-amber-500 flex items-center gap-1 transition-colors disabled:opacity-40"
-            title="Upload a different file"
           >
             <svg width="9" height="9" viewBox="0 0 9 9" fill="none">
               <path d="M4.5 1v6M2 3.5l2.5-2.5 2.5 2.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
               <path d="M1 8h7" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
             </svg>
             Upload new
-            {/* Hidden file input so the button can trigger it */}
           </button>
         )}
       </div>
@@ -75,12 +81,8 @@ export default function RightPanel({
       {/* Scrollable body */}
       <div className="flex-1 overflow-y-auto px-4 py-3">
 
-        {/* Upload zone — shown when idle or after reset */}
-        {showUpload && (
-          <UploadZone onFile={onFileSelect} disabled={isAnalyzing} />
-        )}
+        {showUpload && <UploadZone onFile={onFileSelect} disabled={isAnalyzing} />}
 
-        {/* Currently loaded file indicator when model is live */}
         {(hasModel || historyMode) && (
           <div className="bracket-card rounded bg-[var(--bg-2)] border border-[var(--border)] px-3 py-2 flex items-center gap-2.5">
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="text-amber-500 shrink-0">
@@ -90,28 +92,29 @@ export default function RightPanel({
             <span className="text-[10px] text-[var(--text-2)] truncate flex-1" title={fileName}>
               {fileName}
             </span>
-            {historyMode && (
-              <span className="text-[8px] text-[var(--text-3)] tracking-wider shrink-0">HISTORY</span>
-            )}
+            {isDxf && <span className="text-[8px] text-cyan-400 tracking-wider shrink-0 font-mono">DXF</span>}
+            {historyMode && <span className="text-[8px] text-[var(--text-3)] tracking-wider shrink-0">HISTORY</span>}
           </div>
         )}
 
-        {/* Swap file button — visible when something is loaded */}
         {(hasModel || historyMode) && !isAnalyzing && (
           <div className="mt-2">
             <UploadZone onFile={onFileSelect} disabled={isAnalyzing} compact />
           </div>
         )}
 
-        {/* Geometry stats — shown as soon as model is parsed */}
+        {/* Stats panel — STEP gets 3D mesh stats, DXF gets 2D profile stats */}
         {geometryStats && (
           <>
-            <Separator label="Geometry" />
-            <GeometryStats stats={geometryStats} />
+            <Separator label={isDxf ? 'Profile' : 'Geometry'} />
+            {isDxf
+              ? <DxfStats stats={geometryStats} thickness={thickness} />
+              : <GeometryStats stats={geometryStats} />
+            }
           </>
         )}
 
-        {/* Material selector — visible whenever a model is live */}
+        {/* Material + thickness (thickness only for DXF) */}
         {showAnalyze && (
           <>
             <Separator label="Material" />
@@ -124,13 +127,33 @@ export default function RightPanel({
               >
                 {MATERIALS.map(m => <option key={m} value={m}>{m}</option>)}
               </select>
-              <svg
-                width="10" height="10" viewBox="0 0 10 10" fill="none"
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-[var(--text-3)]"
-              >
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="none"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-[var(--text-3)]">
                 <path d="M2 3.5l3 3 3-3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
             </div>
+
+            {/* Thickness input — DXF only */}
+            {isDxf && (
+              <div className="mt-2">
+                <p className="text-[9px] text-[var(--text-3)] tracking-widest uppercase mb-1.5">
+                  Material Thickness
+                </p>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    value={thickness}
+                    onChange={(e) => onThicknessChange(e.target.value)}
+                    disabled={isAnalyzing}
+                    min="0.5"
+                    max="100"
+                    step="0.5"
+                    className="flex-1 bg-[var(--bg-2)] border border-[var(--border)] rounded px-2.5 py-2 text-[11px] text-[var(--text-1)] font-mono focus:outline-none focus:border-[var(--text-3)] hover:border-[var(--text-3)] transition-colors disabled:opacity-40"
+                  />
+                  <span className="text-[10px] text-[var(--text-3)] font-mono shrink-0">mm</span>
+                </div>
+              </div>
+            )}
           </>
         )}
 
@@ -157,7 +180,7 @@ export default function RightPanel({
                   <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 dot-1 inline-block"/>
                   <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 dot-2 inline-block"/>
                   <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 dot-3 inline-block"/>
-                  <span className="text-cyan-400 text-xs tracking-widest">Analyzing geometry…</span>
+                  <span className="text-cyan-400 text-xs tracking-widest">Analyzing…</span>
                 </span>
               ) : (
                 <span className="flex items-center justify-center gap-2">
@@ -206,16 +229,16 @@ export default function RightPanel({
           </>
         )}
 
-        {/* Empty state: how-it-works */}
+        {/* Empty state */}
         {showUpload && !error && (
           <div className="mt-4 space-y-3">
             <Separator label="How it works" />
             <ol className="space-y-2 pl-1">
               {[
-                'Upload a STEP or STP file',
-                'Part renders in the 3D viewport',
+                'Upload a STEP or DXF file',
+                'Part renders in the viewport',
+                'Select material (+ thickness for DXF)',
                 'Click "Run DFM Analysis"',
-                'Claude reviews 5 camera angles + mesh stats',
                 'Receive manufacturability report',
               ].map((step, i) => (
                 <li key={i} className="flex items-start gap-2.5">
@@ -232,7 +255,7 @@ export default function RightPanel({
                 <div className="rounded border border-[var(--border)] bg-[var(--bg-2)] p-3">
                   <p className="text-[9px] text-[var(--text-3)] mb-1 tracking-wider uppercase">Local dev</p>
                   <p className="text-[10px] text-[var(--text-2)] leading-relaxed">
-                    Set <code className="text-amber-500 bg-[var(--bg-3)] px-1 py-0.5 rounded text-[9px]">VITE_ANTHROPIC_API_KEY</code> in a <code className="text-amber-500 bg-[var(--bg-3)] px-1 py-0.5 rounded text-[9px]">.env</code> file.
+                    Set <code className="text-amber-500 bg-[var(--bg-3)] px-1 py-0.5 rounded text-[9px]">VITE_ANTHROPIC_API_KEY</code> in <code className="text-amber-500 bg-[var(--bg-3)] px-1 py-0.5 rounded text-[9px]">.env</code>
                   </p>
                 </div>
               </>
@@ -240,10 +263,8 @@ export default function RightPanel({
           </div>
         )}
 
-        {/* History */}
         <Separator />
         <HistoryPanel onLoad={onHistoryLoad} />
-
         <div className="h-4" />
       </div>
 

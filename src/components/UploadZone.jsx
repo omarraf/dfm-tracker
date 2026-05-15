@@ -1,6 +1,6 @@
 import { useRef, useState, useCallback } from 'react'
 
-const ACCEPTED    = ['.step', '.stp', '.STEP', '.STP']
+const ACCEPTED    = ['.step', '.stp', '.STEP', '.STP', '.dxf', '.DXF']
 const MAX_SIZE_MB = 50
 
 export default function UploadZone({ onFile, disabled, compact = false }) {
@@ -14,7 +14,7 @@ export default function UploadZone({ onFile, disabled, compact = false }) {
 
     const ext = '.' + file.name.split('.').pop().toLowerCase()
     if (!ACCEPTED.map(e => e.toLowerCase()).includes(ext)) {
-      alert('Please upload a STEP (.step / .stp) file.')
+      alert('Please upload a STEP (.step / .stp) or DXF (.dxf) file.')
       return
     }
 
@@ -57,7 +57,7 @@ export default function UploadZone({ onFile, disabled, compact = false }) {
           ${disabled ? 'opacity-40 cursor-not-allowed' : ''}
         `}
       >
-        <input ref={inputRef} type="file" accept=".step,.stp" className="hidden"
+        <input ref={inputRef} type="file" accept=".step,.stp,.dxf" className="hidden"
           onChange={(e) => pick(e.target.files[0])} disabled={disabled} />
         <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
           <path d="M5.5 1v7M2.5 3.5l3-3 3 3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
@@ -93,7 +93,7 @@ export default function UploadZone({ onFile, disabled, compact = false }) {
           ${disabled ? 'opacity-50 cursor-not-allowed' : ''}
         `}
       >
-        <input ref={inputRef} type="file" accept=".step,.stp" className="hidden"
+        <input ref={inputRef} type="file" accept=".step,.stp,.dxf" className="hidden"
           onChange={(e) => pick(e.target.files[0])} disabled={disabled} />
 
         <svg width="28" height="28" viewBox="0 0 28 28" fill="none"
@@ -108,7 +108,7 @@ export default function UploadZone({ onFile, disabled, compact = false }) {
             {dragging ? 'Drop to load' : 'Upload STEP file'}
           </p>
           <p className="text-[9px] text-[var(--text-3)] mt-0.5 tracking-wider">
-            .STEP · .STP · max {MAX_SIZE_MB} MB
+            .STEP · .STP · .DXF · max {MAX_SIZE_MB} MB
           </p>
         </div>
       </div>
