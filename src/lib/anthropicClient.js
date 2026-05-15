@@ -182,7 +182,7 @@ export async function analyzeWithClaude(
   const text  = data.content?.[0]?.text ?? ''
   const clean = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
   const match = clean.match(/\{[\s\S]*\}/)
-  if (!match) throw new Error('Claude returned an unexpected format. Check the console.')
+  if (!match) throw new Error('AI returned an unexpected format. Check the console.')
 
   return JSON.parse(match[0])
 }

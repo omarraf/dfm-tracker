@@ -49,7 +49,7 @@ const Viewer3D = forwardRef(function Viewer3D(
     sceneRef.current = scene
 
     // Camera
-    const camera = new THREE.PerspectiveCamera(42, 1, 0.01, 2000)
+    const camera = new THREE.PerspectiveCamera(42, 1, 0.01, 1e9)
     camera.position.set(6, 5, 8)
     cameraRef.current = camera
 
@@ -58,7 +58,7 @@ const Viewer3D = forwardRef(function Viewer3D(
     controls.enableDamping = true
     controls.dampingFactor = 0.06
     controls.minDistance = 0.05
-    controls.maxDistance = 800
+    controls.maxDistance = 1e8
     controlsRef.current = controls
 
     // Lights
@@ -192,7 +192,7 @@ const Viewer3D = forwardRef(function Viewer3D(
 
       targetGroup.add(mesh)
 
-      // Edge overlay — makes features visible for Claude's analysis
+      // Edge overlay — makes features visible for AI analysis
       const edgesGeo = new THREE.EdgesGeometry(geometry, 15)
       const edgesMat = new THREE.LineBasicMaterial({
         color: 0xc8dae8,
@@ -247,6 +247,13 @@ const Viewer3D = forwardRef(function Viewer3D(
     const fov      = camera.fov * (Math.PI / 180)
     const distance = (sphere.radius * 2.8) / Math.tan(fov / 2)
     const center   = sphere.center
+
+    // Scale clipping planes and orbit limits to the actual model size
+    camera.near = sphere.radius * 0.001
+    camera.far  = distance * 20
+    camera.updateProjectionMatrix()
+    controls.minDistance = sphere.radius * 0.01
+    controls.maxDistance = distance * 10
 
     camera.position.set(
       center.x + distance * 0.55,

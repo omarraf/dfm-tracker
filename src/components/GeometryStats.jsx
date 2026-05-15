@@ -16,6 +16,18 @@ function StatRow({ label, value, unit, status }) {
   )
 }
 
+function fmtVolume(mm3) {
+  if (mm3 >= 1e9) return { value: (mm3 / 1e9).toLocaleString(undefined, { maximumFractionDigits: 2 }), unit: 'm³' }
+  if (mm3 >= 1e6) return { value: (mm3 / 1e6).toLocaleString(undefined, { maximumFractionDigits: 2 }), unit: 'cm³' }
+  return { value: mm3.toLocaleString(), unit: 'mm³' }
+}
+
+function fmtArea(mm2) {
+  if (mm2 >= 1e6) return { value: (mm2 / 1e6).toLocaleString(undefined, { maximumFractionDigits: 2 }), unit: 'm²' }
+  if (mm2 >= 1e4) return { value: (mm2 / 1e4).toLocaleString(undefined, { maximumFractionDigits: 2 }), unit: 'cm²' }
+  return { value: mm2.toLocaleString(), unit: 'mm²' }
+}
+
 export default function GeometryStats({ stats }) {
   if (!stats) return null
 
@@ -27,6 +39,9 @@ export default function GeometryStats({ stats }) {
     distinctNormalDirections,
     triangleCount,
   } = stats
+
+  const vol  = fmtVolume(volumeMm3)
+  const area = fmtArea(surfaceAreaMm2)
 
   const fillPct      = Math.round(fillRatio * 100)
   const fillStatus   = fillRatio > 0.72 ? 'good' : fillRatio < 0.4 ? 'warn' : null
@@ -68,13 +83,13 @@ export default function GeometryStats({ stats }) {
 
       <StatRow
         label="Volume"
-        value={volumeMm3.toLocaleString()}
-        unit="mm³"
+        value={vol.value}
+        unit={vol.unit}
       />
       <StatRow
         label="Surface Area"
-        value={surfaceAreaMm2.toLocaleString()}
-        unit="mm²"
+        value={area.value}
+        unit={area.unit}
       />
       <StatRow
         label="Downward Faces"

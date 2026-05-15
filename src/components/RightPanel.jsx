@@ -216,7 +216,7 @@ export default function RightPanel({
           <>
             {screenshots.length > 0 && (
               <>
-                <Separator label="Sent to Claude" />
+                <Separator label="AI Analysis Input" />
                 <ScreenshotStrip screenshots={screenshots} />
               </>
             )}
@@ -271,7 +271,7 @@ export default function RightPanel({
       {/* Footer */}
       <div className="px-4 py-2.5 border-t border-[var(--border)] flex items-center justify-between shrink-0">
         <span className="text-[8px] text-[var(--text-3)] tracking-widest uppercase">
-          Powered by Claude Sonnet
+          Powered by AI
         </span>
         {fileName && (
           <span className="text-[8px] text-[var(--text-3)] truncate max-w-[120px]" title={fileName}>

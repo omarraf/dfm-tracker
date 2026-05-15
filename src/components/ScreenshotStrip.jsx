@@ -8,7 +8,7 @@ export default function ScreenshotStrip({ screenshots }) {
       <div className="flex items-center gap-1.5 mb-2">
         <span className="w-1 h-1 rounded-full bg-cyan-400 inline-block"/>
         <span className="text-[9px] text-[var(--text-3)] tracking-widest uppercase">
-          Capture sent to Claude
+          Capture sent to AI
         </span>
       </div>
       <div className="grid grid-cols-4 gap-1.5">
